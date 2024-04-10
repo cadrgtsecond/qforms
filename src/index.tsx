@@ -12,15 +12,18 @@ app.use('/css/*', serveStatic({ root: './' }));
 interface Question {
   id: number,
   desc: string,
+  options: string[],
 }
 
-const Question: FC<Question> = ({id, desc}) =>
-<form hx-get={`/questions/${id}/edit`} hx-swap="outerHTML" class="question-box">
-  <span class="desc">{desc}</span>
-  <input type="hidden" name="desc" value={desc}/>
-  <button type="submit" class="material-symbols-outlined">
-  edit
-  </button>
+const Question: FC<Question> = ({id, desc, options}) =>
+<form hx-trigger="click" hx-get={`/questions/${id}/edit`} hx-swap="outerHTML" class="question-box">
+  <div class="heading">
+
+    <span class="desc">{desc}</span>
+    <input type="hidden" name="desc" value={desc}/>
+  </div>
+  {options.length == 0 ? <p>&lt;no options&gt;</p>
+                       : <p>TODO</p>}
 </form>;
 
 const Index: FC<{questions: Question[]}> = ({questions}) => <>
@@ -34,13 +37,12 @@ const Index: FC<{questions: Question[]}> = ({questions}) => <>
       <link href="/css/index.css" rel="stylesheet"/>
     </head>
     <body>
-      <ul id="questions">
-        {questions.map((q) => <li><Question desc={q.desc} id={q.id}/></li>)}
+      <ul id="questions" class="question-list">
+        {questions.map((q) => <li><Question desc={q.desc} id={q.id} options={[]}/></li>)}
       </ul>
-      <form hx-post="/questions" hx-target="#questions" hx-swap="beforeend">
-        <input type="text" name="description"/>
-        <button type="submit">+</button>
-      </form>
+      <button hx-post="/questions" hx-target="#questions" hx-swap="beforeend" class="material-symbols-outlined">
+        add
+      </button>
     </body>
   </html>
 </>;
@@ -66,47 +68,53 @@ async function createQuestion(desc: string): Promise<number> {
 
 app.post('/questions', async (c) => {
   const {description} = await c.req.parseBody<{description: string}>();
-  const id = await createQuestion(description);
+  const desc = description || 'Question';
+  const id = await createQuestion(desc);
 
-  return c.html(<li><Question id={id} desc={description}/></li>);
+  return c.html(<li><Question id={id} desc={desc} options={[]}/></li>);
 });
 
-app.get('/questions/:id', async (c) => {
+app.get('/questions/:id/heading', async (c) => {
   const id = parseInt(c.req.param('id'));
   const res = await sql`select description from questions where id = ${id}`;
   if(res.length == 0) {
     return c.notFound();
   }
-  return c.html(<Question id={id} desc={res[0].description}/>);
+  return c.html(<Question id={id} desc={res[0].description} options={[]}/>);
 });
-app.post('/questions/:id', async (c) => {
+app.post('/questions/:id/heading', async (c) => {
   const id = parseInt(c.req.param('id'));
-  const {desc} = await c.req.parseBody();
+  const {desc}: {desc: string} = await c.req.parseBody();
   await sql`update questions
              set description = ${desc}
              where id = ${id}`;
-  return c.html(<Question id={id} desc={desc}/>);
+  return c.html(<Question id={id} desc={desc} options={[]}/>);
 });
 
 const QuestionEdit: FC<Question> = ({desc, id}) =>
-<form hx-post={`/questions/${id}`}
+<form hx-post={`/questions/${id}/heading`}
       hx-target="this"
       hx-swap="outerHTML"
       class="question-box">
-  <input class="desc" name="desc" value={desc} autofocus/>
-  <button type="submit" class="material-symbols-outlined">
-    done
-  </button>
-  <button hx-get={`/questions/${id}`}
-          hx-trigger="click, keyup[key == 'Escape'] from:closest form"
-          class="material-symbols-outlined">
-    close
+  <div class="heading">
+    <input class="desc" name="desc" value={desc} autofocus/>
+    <button type="submit" class="material-symbols-outlined">
+      done
+    </button>
+    <button hx-get={`/questions/${id}/heading`}
+            hx-trigger="click, keyup[key == 'Escape'] from:closest form"
+            class="material-symbols-outlined">
+      close
+    </button>
+  </div>
+  <button class="material-symbols-outlined">
+    add
   </button>
 </form>;
 app.get('/questions/:id/edit', async (c) => {
   const id = parseInt(c.req.param('id'));
   const desc = c.req.query('desc') || '';
-  return c.html(<QuestionEdit id={id} desc={desc}/>);
+  return c.html(<QuestionEdit id={id} desc={desc} options={[]}/>);
 });
 
 
