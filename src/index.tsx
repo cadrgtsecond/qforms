@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { html } from 'hono/html';
+import postgres from 'postgres';
 
 const app = new Hono();
+const sql = postgres({ database: 'qform' });
 
 let count = 0;
 
@@ -24,11 +26,16 @@ const index = (count) =>
   </html>
 </>;
 
-app.get('/', (c) => {
+app.get('/', async (c) => {
+  // Only one count guaranteed since name is primary key
+  const [{count}] = await sql`select count from counters where name = 'default'`;
   return c.html(index(count));
 });
-app.post('/increment', (c) => {
-  count += 1;
+app.post('/increment', async (c) => {
+  const [{count}] = await sql`update counters
+                            set count = count + 1
+                            where name = 'default'
+                            returning count`;
   return c.html(<Count count={count}/>);
 });
 
