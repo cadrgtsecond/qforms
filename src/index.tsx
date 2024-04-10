@@ -74,7 +74,7 @@ app.post('/questions', async (c) => {
   return c.html(<li><Question id={id} desc={desc} options={[]}/></li>);
 });
 
-app.get('/questions/:id/heading', async (c) => {
+app.get('/questions/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
   const res = await sql`select description from questions where id = ${id}`;
   if(res.length == 0) {
@@ -82,7 +82,7 @@ app.get('/questions/:id/heading', async (c) => {
   }
   return c.html(<Question id={id} desc={res[0].description} options={[]}/>);
 });
-app.post('/questions/:id/heading', async (c) => {
+app.post('/questions/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
   const {desc}: {desc: string} = await c.req.parseBody();
   await sql`update questions
@@ -90,21 +90,28 @@ app.post('/questions/:id/heading', async (c) => {
              where id = ${id}`;
   return c.html(<Question id={id} desc={desc} options={[]}/>);
 });
+app.delete('/questions/:id', async (c) => {
+  const id = parseInt(c.req.param('id'));
+  await sql`delete from questions where id = ${id}`;
+  return c.body('');
+});
 
 const QuestionEdit: FC<Question> = ({desc, id}) =>
-<form hx-post={`/questions/${id}/heading`}
-      hx-target="this"
+<form hx-target="this"
       hx-swap="outerHTML"
       class="question-box">
   <div class="heading">
     <input class="desc" name="desc" value={desc} autofocus/>
-    <button type="submit" class="material-symbols-outlined">
+    <button hx-post={`/questions/${id}`} class="material-symbols-outlined">
       done
     </button>
-    <button hx-get={`/questions/${id}/heading`}
+    <button hx-get={`/questions/${id}`}
             hx-trigger="click, keyup[key == 'Escape'] from:closest form"
             class="material-symbols-outlined">
       close
+    </button>
+    <button hx-delete={`/questions/${id}`} class="material-symbols-outlined">
+      delete
     </button>
   </div>
   <button class="material-symbols-outlined">
