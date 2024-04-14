@@ -1,13 +1,11 @@
-create type question_type as enum ('text', 'checkbox', 'radio');
 create table questions (
-  id int primary key generated always as identity,
-  ord int not null unique,
+  ord int primary key,
+  kind varchar(80) default 'radio',
   description text
 );
 
-comment on table options is 'Only for checkbox and radio options';
 create table options (
   question int references questions,
-  ord int not null unique,
-  primary key (question, ord)
+  ord int not null,
+  PRIMARY KEY (question, ord)
 );

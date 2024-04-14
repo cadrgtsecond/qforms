@@ -10,15 +10,17 @@ const sql = postgres({});
 app.use('/css/*', serveStatic({ root: './' }));
 
 interface Question {
-  id: number,
+  ord: number,
   desc: string,
   options: string[],
 }
 
-const Question: FC<Question> = ({id, desc, options}) =>
-<form hx-trigger="click" hx-get={`/questions/${id}/edit`} hx-swap="outerHTML" class="question-box">
+const Question: FC<Question> = ({ord, desc, options}) =>
+<form hx-get={`/questions/${ord}/edit`}
+      hx-trigger="click"
+      hx-swap="outerHTML"
+      class="question-box">
   <div class="heading">
-
     <span class="desc">{desc}</span>
     <input type="hidden" name="desc" value={desc}/>
   </div>
@@ -38,7 +40,7 @@ const Index: FC<{questions: Question[]}> = ({questions}) => <>
     </head>
     <body>
       <ul id="questions" class="question-list">
-        {questions.map((q) => <li><Question desc={q.desc} id={q.id} options={[]}/></li>)}
+        {questions.map((q) => <li><Question desc={q.desc} ord={q.ord} options={[]}/></li>)}
       </ul>
       <button hx-post="/questions" hx-target="#questions" hx-swap="beforeend" class="material-symbols-outlined">
         add
@@ -48,10 +50,10 @@ const Index: FC<{questions: Question[]}> = ({questions}) => <>
 </>;
 
 async function fetchQuestions(): Promise<Question[]> {
-  const res = await sql`select id,description
+  const res = await sql`select ord, description
                           from questions
                           order by ord asc`;
-  return res.map(q => ({desc: q.description, id: q.id}));
+  return res.map(q => ({desc: q.description, ord: q.ord}));
 }
 
 app.get('/', async (c) => {
@@ -60,35 +62,35 @@ app.get('/', async (c) => {
 });
 
 async function createQuestion(desc: string): Promise<number> {
-  const [{id}] = await sql`insert into questions (description, ord)
+  const [{ord}] = await sql`insert into questions (description, ord)
                              values (${desc}, (select coalesce(max(ord), 0) + 1 from questions))
-                             returning id`;
-  return id;
+                             returning ord`;
+  return ord;
 }
 
 app.post('/questions', async (c) => {
   const {description} = await c.req.parseBody<{description: string}>();
   const desc = description || 'Question';
-  const id = await createQuestion(desc);
+  const ord = await createQuestion(desc);
 
-  return c.html(<li><Question id={id} desc={desc} options={[]}/></li>);
+  return c.html(<li><Question ord={ord} desc={desc} options={[]}/></li>);
 });
 
-app.get('/questions/:id', async (c) => {
-  const id = parseInt(c.req.param('id'));
-  const res = await sql`select description from questions where id = ${id}`;
+app.get('/questions/:ord', async (c) => {
+  const ord = parseInt(c.req.param('ord'));
+  const res = await sql`select description from questions where ord = ${ord}`;
   if(res.length == 0) {
     return c.notFound();
   }
-  return c.html(<Question id={id} desc={res[0].description} options={[]}/>);
+  return c.html(<Question ord={ord} desc={res[0].description} options={[]}/>);
 });
-app.post('/questions/:id', async (c) => {
-  const id = parseInt(c.req.param('id'));
+app.post('/questions/:ord', async (c) => {
+  const ord = parseInt(c.req.param('ord'));
   const {desc}: {desc: string} = await c.req.parseBody();
   await sql`update questions
              set description = ${desc}
-             where id = ${id}`;
-  return c.html(<Question id={id} desc={desc} options={[]}/>);
+             where ord = ${ord}`;
+  return c.html(<Question ord={ord} desc={desc} options={[]}/>);
 });
 app.delete('/questions/:id', async (c) => {
   const id = parseInt(c.req.param('id'));
@@ -96,21 +98,21 @@ app.delete('/questions/:id', async (c) => {
   return c.body('');
 });
 
-const QuestionEdit: FC<Question> = ({desc, id}) =>
+const QuestionEdit: FC<Question> = ({desc, ord}) =>
 <form hx-target="this"
       hx-swap="outerHTML"
       class="question-box">
   <div class="heading">
     <input class="desc" name="desc" value={desc} autofocus/>
-    <button hx-post={`/questions/${id}`} class="material-symbols-outlined">
+    <button hx-post={`/questions/${ord}`} class="material-symbols-outlined">
       done
     </button>
-    <button hx-get={`/questions/${id}`}
+    <button hx-get={`/questions/${ord}`}
             hx-trigger="click, keyup[key == 'Escape'] from:closest form"
             class="material-symbols-outlined">
       close
     </button>
-    <button hx-delete={`/questions/${id}`} class="material-symbols-outlined">
+    <button hx-delete={`/questions/${ord}`} class="material-symbols-outlined">
       delete
     </button>
   </div>
@@ -118,10 +120,10 @@ const QuestionEdit: FC<Question> = ({desc, id}) =>
     add
   </button>
 </form>;
-app.get('/questions/:id/edit', async (c) => {
-  const id = parseInt(c.req.param('id'));
+app.get('/questions/:ord/edit', async (c) => {
+  const ord = parseInt(c.req.param('ord'));
   const desc = c.req.query('desc') || '';
-  return c.html(<QuestionEdit id={id} desc={desc} options={[]}/>);
+  return c.html(<QuestionEdit ord={ord} desc={desc} options={[]}/>);
 });
 
 
