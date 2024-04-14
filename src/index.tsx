@@ -92,9 +92,12 @@ app.post('/questions/:ord', async (c) => {
              where ord = ${ord}`;
   return c.html(<Question ord={ord} desc={desc} options={[]}/>);
 });
-app.delete('/questions/:id', async (c) => {
-  const id = parseInt(c.req.param('id'));
-  await sql`delete from questions where id = ${id}`;
+app.delete('/questions/:ord', async (c) => {
+  const ord = parseInt(c.req.param('ord'));
+  await sql.begin(async sql => {
+    await sql`delete from questions where ord = ${ord}`;
+    await sql`update questions set ord = ord - 1 where ord > ${ord}`;
+  });
   return c.body('');
 });
 
