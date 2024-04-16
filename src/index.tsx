@@ -33,7 +33,7 @@ const Options: FC<{ options: QuestionOption[]; question: number }> = ({
   options,
   question,
 }) => (
-  <ol class="options">
+  <ol _="install SortableList()" class="options">
     {options.map((o) => (
       <Option id={o.id} desc={o.desc} question={question} />
     ))}
@@ -58,6 +58,9 @@ const Question: FC<Question> = ({ id: ord, desc, options }) => (
       >
         delete
       </button>
+      <span class="handle material-symbols-outlined">
+        drag_indicator
+      </span>
     </div>
     <Options options={options} question={ord} />
     <button
@@ -86,19 +89,28 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
           integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
           crossorigin="anonymous"
         ></script>
-        <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+        <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
           rel="stylesheet"
         />
         <link href="/css/index.css" rel="stylesheet" />
         <script type="text/hyperscript">
-          init repeat forever trigger save on {html`<body />`}
-          wait 2s end
+          init repeat forever
+            trigger save on {html`<body />`}
+            wait 2s
+          end
+          behavior SortableList(handle)
+            init make a Sortable from me, {'{'}
+              animation: 150,
+              handle: handle
+            {'}'}
+          end
         </script>
+        <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
       </head>
       <body>
-        <ul id="questions" class="question-list">
+        <ul _="install SortableList(handle: '.handle')" id="questions" class="question-list">
           {questions.map((q) => (
             <li>
               <Question desc={q.desc} id={q.id} options={q.options} />
