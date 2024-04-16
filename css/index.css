@@ -69,20 +69,28 @@ input:focus {
 }
 
 .question-list {
+  /* To cancel out ul padding */
+  padding-inline-start: 0;
+
   margin-block: 1rem;
   list-style: none;
-  padding-inline-start: 1rem;
+  margin-inline: auto;
+  width: 55rem;
 }
 
 .question-box {
   border: 1px solid grey;
-  max-width: 50rem;
   margin-block: 1rem;
-  padding: 0.5rem;
+  min-height: 8rlh;
 }
 .question-box .heading {
   display: flex;
   margin-block: 0.5em;
+  padding-inline: 0.5rem;
+}
+.question-box .heading input {
+  display: flex;
+  flex: 1;
 }
 
 .question-box .desc {
@@ -92,8 +100,10 @@ input:focus {
 }
 
 .question-box .options {
-  width: 80%;
   margin-block-end: 0.3rem;
+}
+.question-box .options input {
+  width: 50%
 }
 
 .hidden-button {
