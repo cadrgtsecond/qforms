@@ -5,7 +5,7 @@ create table questions (
 );
 
 create table options (
-  question int references questions,
+  question int references questions (ord) on delete cascade,
   ord int not null,
   description text,
   PRIMARY KEY (question, ord)
