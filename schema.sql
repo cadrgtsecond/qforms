@@ -7,5 +7,6 @@ create table questions (
 create table options (
   question int references questions,
   ord int not null,
+  description text,
   PRIMARY KEY (question, ord)
 );

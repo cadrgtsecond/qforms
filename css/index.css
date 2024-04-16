@@ -1,3 +1,9 @@
+@import "https://unpkg.com/open-props";
+
+/*
+ * CSS RESET
+ * /
+
 /* 1. Use a more-intuitive box-sizing mode */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -38,10 +44,18 @@ button {
   border: none;
 }
 
+input {
+  border-style: none none solid none;
+  border-width: 0 0 0.15rem 0;
+}
+input:focus {
+  outline: var(--blue-3) solid 1px;
+}
+
 .question-list {
-  margin-block: 1em;
+  margin-block: 1rem;
   list-style: none;
-  padding-inline-start: 1em;
+  padding-inline-start: 1rem;
 }
 
 .question-box {
@@ -59,6 +73,11 @@ button {
   font-size: large;
   vertical-align: baseline;
   margin-inline: 0.5em;
+}
+
+.question-box .options {
+  width: 80%;
+  margin-block-end: 0.3rem;
 }
 
 .hidden-button {
