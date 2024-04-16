@@ -26,11 +26,7 @@ const Option: FC<QuestionOption & { question: number }> = ({
   desc,
 }) => (
   <li>
-    <input
-      hx-put={`/questions/${question}/${id}`}
-      name="options"
-      value={desc}
-    />
+    <input hx-put={`/questions/${question}/${id}`} name="option" value={desc} />
   </li>
 )
 const Options: FC<{ options: QuestionOption[]; question: number }> = ({
@@ -44,21 +40,16 @@ const Options: FC<{ options: QuestionOption[]; question: number }> = ({
   </ol>
 )
 
-const QuestionDesc: FC<{ desc: string; ord: number }> = ({ desc, ord }) => (
-  <input
-    hx-put={`/questions/${ord}`}
-    hx-swap="outerHTML"
-    hx-trigger="keyup changed delay:500ms, save changed from:body"
-    class="desc"
-    name="desc"
-    value={desc}
-  />
-)
-
 const Question: FC<Question> = ({ id: ord, desc, options }) => (
   <div class="question-box">
     <div class="heading">
-      <QuestionDesc desc={desc} ord={ord} />
+      <input
+        hx-put={`/questions/${ord}`}
+        hx-trigger="keyup changed delay:500ms, save changed from:body"
+        class="desc"
+        name="desc"
+        value={desc}
+      />
       <button
         hx-target="closest .question-box"
         hx-swap="outerHTML"
@@ -178,7 +169,8 @@ app.put('/questions/:id', async (c) => {
   await sql`update questions
              set description = ${desc}
              where ord = ${ord}`
-  return c.html(<QuestionDesc ord={ord} desc={desc} />)
+  // Unnecessary since input is already updated
+  return c.body('')
 })
 app.delete('/questions/:id', async (c) => {
   const ord = parseInt(c.req.param('id'))
@@ -199,6 +191,19 @@ app.post('/questions/:id', async (c) => {
                                           where question = ${question}))
                                 returning ord`
   return c.html(<Option id={ord} desc={desc} question={question} />)
+})
+
+app.put('/questions/:question/:option', async (c) => {
+  const question = c.req.param('question')
+  const option = c.req.param('option')
+  const body = await c.req.parseBody()
+  const desc = body.option
+  await sql`update options
+              set description = ${desc}
+              where question = ${question} and
+                    ord = ${option}`
+  // Unnecssary since input is already updated
+  return c.body('')
 })
 
 export default app
