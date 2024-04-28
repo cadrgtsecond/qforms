@@ -28,17 +28,27 @@ const Option: FC<QuestionOption & { question: number }> = ({
 }) => (
   <li>
     <input hx-put={`/questions/${question}/${id}`} name="option" value={desc} />
+    <span class="handle material-symbols-outlined">drag_indicator</span>
   </li>
 )
 const Options: FC<{ options: QuestionOption[]; question: number }> = ({
   options,
   question,
 }) => (
-  <ol _="install SortableList()" class="options">
-    {options.map((o) => (
-      <Option id={o.id} desc={o.desc} question={question} />
-    ))}
-  </ol>
+  <form>
+    <ol
+      _="install SortableList(handle: '.handle')
+         on end halt the event"
+      hx-put={`/questions/${question}`}
+      hx-trigger="end"
+      hx-swap="outerHTML"
+      class="options"
+    >
+      {options.map((o) => (
+        <Option id={o.id} desc={o.desc} question={question} />
+      ))}
+    </ol>
+  </form>
 )
 
 const Question: FC<Question> = ({ id, desc, options }) => (
@@ -46,7 +56,7 @@ const Question: FC<Question> = ({ id, desc, options }) => (
     <input type="hidden" name="question_id" value={id} />
     <div class="heading">
       <input
-        hx-put={`/questions/${id}`}
+        hx-put={`/questions/${id}/heading`}
         hx-trigger="keyup changed delay:500ms, save changed from:body"
         class="desc"
         name="desc"
@@ -113,6 +123,7 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
           hx-trigger="end"
           hx-swap="none"
           hx-include="input[name='question_id']"
+          hx-disinherit="hx-include"
           id="questions"
           class="question-list"
         >
@@ -150,7 +161,7 @@ async function fetchQuestions(): Promise<Question[]> {
     id,
     ord,
     desc,
-    options: (grouped[ord] ?? []).map(({ ord, description }) => ({
+    options: (grouped[id] ?? []).map(({ ord, description }) => ({
       id: ord,
       desc: description,
     })),
@@ -161,6 +172,10 @@ app.get('/', async (c) => {
   // Only one count guaranteed since name is primary key
   return c.html(<Index questions={await fetchQuestions()} />)
 })
+
+/*
+ * Questions
+ */
 
 async function createQuestion(
   desc: string
@@ -184,14 +199,14 @@ app.post('/questions', async (c) => {
 app.put('/questions', async (c) => {
   const body: { question_id: string[] } = await c.req.parseBody({ all: true })
   const q_ids = body.question_id.map((id, ord) => [parseInt(id), ord])
-    await sql`update questions
-                set ord = (update_data.ord)::int
-                from (values ${sql(q_ids)}) as update_data (id, ord)
-                where questions.id = (update_data.id)::int`
+  await sql`update questions
+              set ord = update_data.ord::int
+              from (values ${sql(q_ids)}) as update_data (id, ord)
+              where questions.id = update_data.id::int`
   return c.body('')
 })
 
-app.put('/questions/:id', async (c) => {
+app.put('/questions/:id/heading', async (c) => {
   const id = parseInt(c.req.param('id'))
   const { desc }: { desc: string } = await c.req.parseBody()
   await sql`update questions
@@ -211,6 +226,10 @@ app.delete('/questions/:id', async (c) => {
   })
   return c.body('')
 })
+
+/*
+ * Options
+ */
 app.post('/questions/:id', async (c) => {
   const question = parseInt(c.req.param('id'))
   const desc: string = 'Option'
@@ -235,6 +254,18 @@ app.put('/questions/:question/:option', async (c) => {
                     ord = ${option}`
   // Unnecssary since input is already updated
   return c.body('')
+})
+
+app.put('/questions/:question', async (c) => {
+  const question = c.req.param('question')
+  const { option }: { option: string[] } = await c.req.parseBody({ all: true })
+  sql.begin(async (sql) => {
+    await sql`delete from options
+                where question = ${question}`
+    const data = option.map((desc, i) => [question, desc, i])
+    await sql`insert into options (question, description, ord)
+                values ${sql(data)}`
+  })
 })
 
 export default app
