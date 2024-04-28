@@ -21,49 +21,41 @@ interface QuestionOption {
   desc: string
 }
 
-const Option: FC<QuestionOption & { question: number }> = ({
-  question,
-  id,
-  desc,
-}) => (
+const Option: FC<{ desc: string }> = ({ desc }) => (
   <li>
-    <input hx-put={`/questions/${question}/${id}`} name="option" value={desc} />
+    <input name="option" value={desc} />
+    <button
+      type="button"
+      class="handle material-symbols-outlined"
+      _="on click remove the closest <li/> then trigger save"
+    >
+      delete
+    </button>
     <span class="handle material-symbols-outlined">drag_indicator</span>
   </li>
 )
-const Options: FC<{ options: QuestionOption[]; question: number }> = ({
-  options,
-  question,
-}) => (
-  <form>
-    <ol
-      _="install SortableList(handle: '.handle')
-         on end halt the event"
-      hx-put={`/questions/${question}`}
-      hx-trigger="end"
-      hx-swap="outerHTML"
-      class="options"
-    >
-      {options.map((o) => (
-        <Option id={o.id} desc={o.desc} question={question} />
-      ))}
-    </ol>
-  </form>
+const Options: FC<{ options: QuestionOption[] }> = ({ options }) => (
+  <ol _="install SortableList(handle: '.handle')">
+    {options.map((o) => (
+      <Option desc={o.desc} />
+    ))}
+  </ol>
 )
 
 const Question: FC<Question> = ({ id, desc, options }) => (
-  <div class="question-box">
+  <form
+    hx-put={`/questions/${id}`}
+    hx-trigger="end, save, input delay:500ms"
+    hx-params="not question_id"
+    _="on end halt the event"
+    class="question-box"
+  >
     <input type="hidden" name="question_id" value={id} />
     <div class="heading">
-      <input
-        hx-put={`/questions/${id}/heading`}
-        hx-trigger="keyup changed delay:500ms, save changed from:body"
-        class="desc"
-        name="desc"
-        value={desc}
-      />
+      <input class="desc" name="desc" value={desc} />
       <button
         hx-delete={`/questions/${id}`}
+        hx-params="none"
         hx-target="closest .question-box"
         hx-swap="outerHTML"
         class="material-symbols-outlined"
@@ -72,18 +64,17 @@ const Question: FC<Question> = ({ id, desc, options }) => (
       </button>
       <span class="handle material-symbols-outlined">drag_indicator</span>
     </div>
-    <Options options={options} question={id} />
+    <Options options={options} />
     <button
-      hx-post={`/questions/${id}`}
-      hx-target="previous .options"
-      hx-swap="beforeend"
       class="material-symbols-outlined"
+      type="button"
+      _="on click get the outerHTML of the previous <li/> then put it at the end of the previous <ol/>
+                  then trigger save"
     >
       add
     </button>
-  </div>
+  </form>
 )
-
 const Index: FC<{ questions: Question[] }> = ({ questions }) => (
   <>
     {html`<!doctype html>`}
@@ -173,10 +164,6 @@ app.get('/', async (c) => {
   return c.html(<Index questions={await fetchQuestions()} />)
 })
 
-/*
- * Questions
- */
-
 async function createQuestion(
   desc: string
 ): Promise<{ id: number; ord: number }> {
@@ -206,16 +193,6 @@ app.put('/questions', async (c) => {
   return c.body('')
 })
 
-app.put('/questions/:id/heading', async (c) => {
-  const id = parseInt(c.req.param('id'))
-  const { desc }: { desc: string } = await c.req.parseBody()
-  await sql`update questions
-              set description = ${desc}
-              where id = ${id}`
-  // Unnecessary since input is already updated
-  return c.body('')
-})
-
 app.delete('/questions/:id', async (c) => {
   const id = parseInt(c.req.param('id'))
   await sql.begin(async (sql) => {
@@ -227,45 +204,24 @@ app.delete('/questions/:id', async (c) => {
   return c.body('')
 })
 
-/*
- * Options
- */
-app.post('/questions/:id', async (c) => {
-  const question = parseInt(c.req.param('id'))
-  const desc: string = 'Option'
-  const [{ ord }] = await sql`insert into options (question, description, ord)
-                                values (${question},
-                                        ${desc},
-                                        (select coalesce(max(ord) + 1, 0)
-                                          from options
-                                          where question = ${question}))
-                                returning ord`
-  return c.html(<Option id={ord} desc={desc} question={question} />)
-})
-
-app.put('/questions/:question/:option', async (c) => {
-  const question = c.req.param('question')
-  const option = c.req.param('option')
-  const body = await c.req.parseBody()
-  const desc = body.option
-  await sql`update options
-              set description = ${desc}
-              where question = ${question} and
-                    ord = ${option}`
-  // Unnecssary since input is already updated
-  return c.body('')
-})
-
 app.put('/questions/:question', async (c) => {
   const question = c.req.param('question')
-  const { option }: { option: string[] } = await c.req.parseBody({ all: true })
+  const { option, desc }: { option: string[]; desc: string } =
+    await c.req.parseBody({ all: true })
   sql.begin(async (sql) => {
+    // Change heading
+    await sql`update questions
+                set description = ${desc}
+                where id = ${question}`
+
+    // Update Options
     await sql`delete from options
                 where question = ${question}`
     const data = option.map((desc, i) => [question, desc, i])
     await sql`insert into options (question, description, ord)
                 values ${sql(data)}`
   })
+  return c.body('')
 })
 
 export default app
