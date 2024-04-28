@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "strict": true,
+    "moduleResolution": "nodenext",
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "target": "es2015"
   }
 }

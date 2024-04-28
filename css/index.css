@@ -103,7 +103,7 @@ input:focus {
   margin-block-end: 0.3rem;
 }
 .question-box .options input {
-  width: 50%
+  width: 50%;
 }
 
 .hidden-button {

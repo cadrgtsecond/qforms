@@ -12,6 +12,7 @@ app.use('/css/*', serveStatic({ root: './' }))
 
 interface Question {
   id: number
+  ord: number
   desc: string
   options: QuestionOption[]
 }
@@ -40,31 +41,30 @@ const Options: FC<{ options: QuestionOption[]; question: number }> = ({
   </ol>
 )
 
-const Question: FC<Question> = ({ id: ord, desc, options }) => (
+const Question: FC<Question> = ({ id, desc, options }) => (
   <div class="question-box">
+    <input type="hidden" name="question_id" value={id} />
     <div class="heading">
       <input
-        hx-put={`/questions/${ord}`}
+        hx-put={`/questions/${id}`}
         hx-trigger="keyup changed delay:500ms, save changed from:body"
         class="desc"
         name="desc"
         value={desc}
       />
       <button
+        hx-delete={`/questions/${id}`}
         hx-target="closest .question-box"
         hx-swap="outerHTML"
-        hx-delete={`/questions/${ord}`}
         class="material-symbols-outlined"
       >
         delete
       </button>
-      <span class="handle material-symbols-outlined">
-        drag_indicator
-      </span>
+      <span class="handle material-symbols-outlined">drag_indicator</span>
     </div>
-    <Options options={options} question={ord} />
+    <Options options={options} question={id} />
     <button
-      hx-post={`/questions/${ord}`}
+      hx-post={`/questions/${id}`}
       hx-target="previous .options"
       hx-swap="beforeend"
       class="material-symbols-outlined"
@@ -89,6 +89,7 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
           integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
           crossorigin="anonymous"
         ></script>
+        <script src="https://unpkg.com/htmx.org@1.9.11/dist/ext/path-params.js" />
         <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
@@ -96,24 +97,28 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
         />
         <link href="/css/index.css" rel="stylesheet" />
         <script type="text/hyperscript">
-          init repeat forever
-            trigger save on {html`<body />`}
-            wait 2s
-          end
-          behavior SortableList(handle)
-            init make a Sortable from me, {'{'}
-              animation: 150,
-              handle: handle
-            {'}'}
+          init repeat forever trigger save on {html`<body />`}
+          wait 2s end behavior SortableList(handle) init make a Sortable from
+          me, {'{'}
+          animation: 150, handle: handle
+          {'}'}
           end
         </script>
         <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
       </head>
-      <body>
-        <ul _="install SortableList(handle: '.handle')" id="questions" class="question-list">
-          {questions.map((q) => (
+      <body hx-ext="path-params">
+        <ul
+          _="install SortableList(handle: '.handle')"
+          hx-put="/questions"
+          hx-trigger="end"
+          hx-swap="none"
+          hx-include="input[name='question_id']"
+          id="questions"
+          class="question-list"
+        >
+          {questions.map((q, i) => (
             <li>
-              <Question desc={q.desc} id={q.id} options={q.options} />
+              <Question desc={q.desc} id={q.id} ord={i} options={q.options} />
             </li>
           ))}
         </ul>
@@ -131,8 +136,8 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
 )
 
 async function fetchQuestions(): Promise<Question[]> {
-  const questions: { ord: number; description: string }[] =
-    await sql`select ord, description
+  const questions: { id: number; ord: number; description: string }[] =
+    await sql`select id, ord, description
                 from questions
                 order by ord asc`
   const options: { question: number; ord: number; description: string }[] =
@@ -141,9 +146,10 @@ async function fetchQuestions(): Promise<Question[]> {
                 order by ord asc`
   const grouped = Object.groupBy(options, (e) => e.question)
 
-  return questions.map(({ ord, description }) => ({
-    id: ord,
-    desc: description,
+  return questions.map(({ id, ord, description: desc }) => ({
+    id,
+    ord,
+    desc,
     options: (grouped[ord] ?? []).map(({ ord, description }) => ({
       id: ord,
       desc: description,
@@ -156,39 +162,52 @@ app.get('/', async (c) => {
   return c.html(<Index questions={await fetchQuestions()} />)
 })
 
-async function createQuestion(desc: string): Promise<number> {
-  const [{ ord }] = await sql`insert into questions (description, ord)
-                                values (${desc}, (select coalesce(max(ord), 0) + 1 from questions))
-                                returning ord`
-  return ord
+async function createQuestion(
+  desc: string
+): Promise<{ id: number; ord: number }> {
+  const [{ id, ord }] = await sql`insert into questions (description, ord)
+                                    values (${desc}, (select coalesce(max(ord) + 1, 0) from questions))
+                                    returning id, ord`
+  return { id, ord }
 }
 
 app.post('/questions', async (c) => {
-  const { description } = await c.req.parseBody<{ description: string }>()
-  const desc = description || 'Question'
-  const id = await createQuestion(desc)
+  const desc = 'Question'
+  const q = await createQuestion(desc)
 
   return c.html(
     <li>
-      <Question id={id} desc={desc} options={[]} />
+      <Question {...q} desc={desc} options={[]} />
     </li>
   )
 })
+app.put('/questions', async (c) => {
+  const body: { question_id: string[] } = await c.req.parseBody({ all: true })
+  const q_ids = body.question_id.map((id, ord) => [parseInt(id), ord])
+    await sql`update questions
+                set ord = (update_data.ord)::int
+                from (values ${sql(q_ids)}) as update_data (id, ord)
+                where questions.id = (update_data.id)::int`
+  return c.body('')
+})
 
 app.put('/questions/:id', async (c) => {
-  const ord = parseInt(c.req.param('id'))
+  const id = parseInt(c.req.param('id'))
   const { desc }: { desc: string } = await c.req.parseBody()
   await sql`update questions
-             set description = ${desc}
-             where ord = ${ord}`
+              set description = ${desc}
+              where id = ${id}`
   // Unnecessary since input is already updated
   return c.body('')
 })
+
 app.delete('/questions/:id', async (c) => {
-  const ord = parseInt(c.req.param('id'))
+  const id = parseInt(c.req.param('id'))
   await sql.begin(async (sql) => {
-    await sql`delete from questions where ord = ${ord}`
-    await sql`update questions set ord = ord - 1 where ord > ${ord}`
+    await sql`delete from questions where id = ${id}`
+    await sql`update questions set ord = questions.ord - 1
+                from questions as old
+                where questions.ord > old.ord and old.id = ${id}`
   })
   return c.body('')
 })
@@ -198,7 +217,7 @@ app.post('/questions/:id', async (c) => {
   const [{ ord }] = await sql`insert into options (question, description, ord)
                                 values (${question},
                                         ${desc},
-                                        (select coalesce(max(ord), 0) + 1
+                                        (select coalesce(max(ord) + 1, 0)
                                           from options
                                           where question = ${question}))
                                 returning ord`
