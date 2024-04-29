@@ -4,6 +4,7 @@ import { serveStatic } from 'hono/bun'
 import { html } from 'hono/html'
 import { FC } from 'hono/jsx'
 import postgres from 'postgres'
+import { z } from 'zod'
 
 const app = new Hono()
 const sql = postgres({})
@@ -12,7 +13,6 @@ app.use('/css/*', serveStatic({ root: './' }))
 
 interface Question {
   id: number
-  ord: number
   desc: string
   options: QuestionOption[]
 }
@@ -50,7 +50,7 @@ const Options: FC<{ options: QuestionOption[] }> = ({ options }) => (
   </ol>
 )
 
-const Question: FC<Question> = ({ id, desc, options }) => (
+const QuestionEl: FC<Question> = ({ id, desc, options }) => (
   <form
     hx-put={`/questions/${id}`}
     hx-trigger="end, save delay:500ms, input delay:500ms"
@@ -125,9 +125,9 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
           id="questions"
           class="question-list"
         >
-          {questions.map((q, i) => (
+          {questions.map((q) => (
             <li>
-              <Question desc={q.desc} id={q.id} ord={i} options={q.options} />
+              <QuestionEl {...q} />
             </li>
           ))}
         </ul>
@@ -145,8 +145,8 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
 )
 
 async function fetchQuestions(): Promise<Question[]> {
-  const questions: { id: number; ord: number; description: string }[] =
-    await sql`select id, ord, description
+  const questions: { id: number; description: string }[] =
+    await sql`select id, description
                 from questions
                 order by ord asc`
   const options: {
@@ -158,9 +158,8 @@ async function fetchQuestions(): Promise<Question[]> {
                 order by ord asc`
   const grouped = Object.groupBy(options, (e) => e.question)
 
-  return questions.map(({ id, ord, description: desc }) => ({
+  return questions.map(({ id, description: desc }) => ({
     id,
-    ord,
     desc,
     options: (grouped[id] ?? []).map(({ description, selected }) => ({
       selected,
@@ -189,13 +188,14 @@ app.post('/questions', async (c) => {
 
   return c.html(
     <li>
-      <Question {...q} desc={desc} options={[]} />
+      <QuestionEl {...q} desc={desc} options={[]} />
     </li>
   )
 })
 app.put('/questions', async (c) => {
-  const body: { question_id: string[] } = await c.req.parseBody({ all: true })
-  const q_ids = body.question_id.map((id, ord) => [parseInt(id), ord])
+  const body = z.object({ question_id: z.array(z.coerce.number()) })
+  const { question_id } = body.parse(await c.req.parseBody({ all: true }))
+  const q_ids = question_id.map((id, ord) => [id, ord])
   await sql`update questions
               set ord = update_data.ord::int
               from (values ${sql(q_ids)}) as update_data (id, ord)
@@ -204,7 +204,7 @@ app.put('/questions', async (c) => {
 })
 
 app.delete('/questions/:id', async (c) => {
-  const id = parseInt(c.req.param('id'))
+  const id = z.coerce.number().parse(c.req.param('id'))
   await sql.begin(async (sql) => {
     await sql`delete from questions where id = ${id}`
     await sql`update questions set ord = questions.ord - 1
@@ -215,15 +215,15 @@ app.delete('/questions/:id', async (c) => {
 })
 
 app.put('/questions/:question', async (c) => {
+  const body = z.object({
+    option: z.array(z.string()),
+    desc: z.string(),
+    selected: z.coerce.number(),
+  })
   const question = c.req.param('question')
-  const {
-    option,
-    desc,
-    selected,
-  }: { option: string[]; desc: string; selected: string } =
+  const { option, desc, selected } = body.parse(
     await c.req.parseBody({ all: true })
-  const sel = parseInt(selected)
-  console.log(sel)
+  )
   sql.begin(async (sql) => {
     // Change heading
     await sql`update questions
@@ -233,7 +233,7 @@ app.put('/questions/:question', async (c) => {
     // Update Options
     await sql`delete from options
                 where question = ${question}`
-    const data = option.map((desc, i) => [question, desc, i, i === sel])
+    const data = option.map((desc, i) => [question, desc, i, i === selected])
     await sql`insert into options (question, description, ord, selected)
                 values ${sql(data)}`
   })
