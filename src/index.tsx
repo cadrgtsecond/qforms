@@ -17,13 +17,14 @@ interface Question {
   options: QuestionOption[]
 }
 interface QuestionOption {
-  id: number
   desc: string
+  selected: boolean
 }
 
-const Option: FC<{ desc: string }> = ({ desc }) => (
+const Option: FC<QuestionOption> = ({ desc, selected }) => (
   <li>
-    <input name="option" value={desc} />
+    <input type="radio" name="selected" checked={selected} />
+    <input type="text" name="option" value={desc} />
     <button
       type="button"
       class="handle material-symbols-outlined"
@@ -35,9 +36,16 @@ const Option: FC<{ desc: string }> = ({ desc }) => (
   </li>
 )
 const Options: FC<{ options: QuestionOption[] }> = ({ options }) => (
-  <ol _="install SortableList(handle: '.handle')">
+  <ol
+    _="install SortableList(handle: '.handle')
+         def setSelectedValue()
+           repeat in <input[name='selected']/> in me index i set its @value to i
+         end
+         on end halt the event then call setSelectedValue() then trigger save
+         init call setSelectedValue()"
+  >
     {options.map((o) => (
-      <Option desc={o.desc} />
+      <Option {...o} />
     ))}
   </ol>
 )
@@ -45,9 +53,8 @@ const Options: FC<{ options: QuestionOption[] }> = ({ options }) => (
 const Question: FC<Question> = ({ id, desc, options }) => (
   <form
     hx-put={`/questions/${id}`}
-    hx-trigger="end, save, input delay:500ms"
+    hx-trigger="end, save delay:500ms, input delay:500ms"
     hx-params="not question_id"
-    _="on end halt the event"
     class="question-box"
   >
     <input type="hidden" name="question_id" value={id} />
@@ -142,8 +149,11 @@ async function fetchQuestions(): Promise<Question[]> {
     await sql`select id, ord, description
                 from questions
                 order by ord asc`
-  const options: { question: number; ord: number; description: string }[] =
-    await sql`select question, ord, description
+  const options: {
+    question: number
+    description: string
+    selected: boolean
+  }[] = await sql`select question, ord, description, selected
                 from options
                 order by ord asc`
   const grouped = Object.groupBy(options, (e) => e.question)
@@ -152,8 +162,8 @@ async function fetchQuestions(): Promise<Question[]> {
     id,
     ord,
     desc,
-    options: (grouped[id] ?? []).map(({ ord, description }) => ({
-      id: ord,
+    options: (grouped[id] ?? []).map(({ description, selected }) => ({
+      selected,
       desc: description,
     })),
   }))
@@ -206,8 +216,14 @@ app.delete('/questions/:id', async (c) => {
 
 app.put('/questions/:question', async (c) => {
   const question = c.req.param('question')
-  const { option, desc }: { option: string[]; desc: string } =
+  const {
+    option,
+    desc,
+    selected,
+  }: { option: string[]; desc: string; selected: string } =
     await c.req.parseBody({ all: true })
+  const sel = parseInt(selected)
+  console.log(sel)
   sql.begin(async (sql) => {
     // Change heading
     await sql`update questions
@@ -217,8 +233,8 @@ app.put('/questions/:question', async (c) => {
     // Update Options
     await sql`delete from options
                 where question = ${question}`
-    const data = option.map((desc, i) => [question, desc, i])
-    await sql`insert into options (question, description, ord)
+    const data = option.map((desc, i) => [question, desc, i, i === sel])
+    await sql`insert into options (question, description, ord, selected)
                 values ${sql(data)}`
   })
   return c.body('')
