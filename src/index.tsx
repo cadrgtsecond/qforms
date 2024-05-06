@@ -203,11 +203,10 @@ app.post('/questions', async (c) => {
 app.put('/questions', async (c) => {
   const body = z.object({ question_id: z_coerce_array(z.coerce.number()) })
   const { question_id } = body.parse(await c.req.parseBody({ all: true }))
-  const q_ids = question_id.map((id, ord) => [id, ord])
   await sql`update questions
-              set ord = update_data.ord::int
-              from (values ${sql(q_ids)}) as update_data (id, ord)
-              where questions.id = update_data.id::int`
+              set ord = new_ord
+              from (select generate_series(1,${question_id.length}) as new_ord, unnest(${question_id}::int[]) as update_id)
+              where questions.id = update_id`;
   return c.body('')
 })
 
