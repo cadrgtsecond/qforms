@@ -123,12 +123,15 @@ app.get('/', async (c) => {
 
 app.route('./questions', questions)
 
-const SignUpForm: FC<{ message?: string }> = ({ message }) => (
+const LoginForm: FC<{ message?: string; targeturl: string }> = ({
+  message,
+  targeturl,
+}) => (
   <Skeleton>
     <form
       method="post"
-      action="/signup"
-      hx-post="/signup"
+      action={targeturl}
+      hx-post={targeturl}
       hx-swap="none"
       class="signup-form"
     >
@@ -141,6 +144,14 @@ const SignUpForm: FC<{ message?: string }> = ({ message }) => (
     </form>
   </Skeleton>
 )
+
+async function hx_redirect(c: Context, url: string) {
+  if (c.req.header('HX-Request') === 'true') {
+    c.header('HX-Location', url)
+    return c.body('')
+  }
+  return c.redirect(url)
+}
 
 async function createSession(username: string) {
   const sessionid = crypto.getRandomValues(new Uint32Array(1))[0]
@@ -156,18 +167,18 @@ async function authenticate(c: Context, session: number) {
 }
 
 app.get('/signup', async (c) => {
-  return c.html(<SignUpForm />)
+  return c.html(<LoginForm targeturl="/signup" />)
 })
 app.post('/signup', async (c) => {
   const body = z.object({ username: z.string(), password: z.string() })
   const { username, password } = body.parse(await c.req.parseBody())
   const pass_hashed = await Bun.password.hash(password)
+
   try {
     await sql`insert into users (name, pass) values (${username}, ${pass_hashed})`
     const session = await createSession(username)
     await authenticate(c, session)
   } catch (e) {
-    console.log(e)
     if (e instanceof pg.PostgresError) {
       return c.html(
         <div id="messages" hx-swap-oob="true">
@@ -181,11 +192,35 @@ app.post('/signup', async (c) => {
       </div>
     )
   }
-  if (c.req.header('HX-Request') === 'true') {
-    c.header('HX-Location', '/')
-    return c.body('')
-  }
-  return c.redirect('/')
+  hx_redirect(c, '/')
 })
 
+app.get('/login', async (c) => {
+  return c.html(<LoginForm targeturl="/login" />)
+})
+app.post('/login', async (c) => {
+  const body = z.object({ username: z.string(), password: z.string() })
+  const { username, password } = body.parse(await c.req.parseBody())
+  const [{ pass: expected_hash }]: { pass: string }[] =
+    await sql`select pass from users where name = ${username}`
+  if (!expected_hash) {
+    return c.html(
+      <div id="messages" hx-swap-oob="true">
+        <p>Unknown user</p>
+      </div>
+    )
+  }
+
+  if (await Bun.password.verify(password, expected_hash)) {
+    const session = await createSession(username)
+    await authenticate(c, session)
+  } else {
+    return c.html(
+      <div id="messages" hx-swap-oob="true">
+        <p>Wrong password</p>
+      </div>
+    )
+  }
+  hx_redirect(c, '/')
+})
 export default app
