@@ -12,3 +12,13 @@ create table options (
   selected bool not null default false,
   primary key (question, ord) deferrable initially deferred
 );
+
+create table users (
+  name varchar(80) primary key,
+  pass varchar(120) not null
+);
+
+create table sessions (
+  id varchar(36) primary key,
+  "user" varchar(80) references users (name)
+);

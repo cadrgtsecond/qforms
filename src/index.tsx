@@ -1,20 +1,28 @@
-import { Hono } from 'hono'
+import { Hono, Context } from 'hono'
 import { serveStatic } from 'hono/bun'
+import { setSignedCookie } from 'hono/cookie'
 import { html } from 'hono/html'
-import { FC } from 'hono/jsx'
+import { Child, FC, PropsWithChildren } from 'hono/jsx'
 import questions, { Question } from './questions'
 import QuestionEl from './Question'
 import sql from './sql'
+import pg from 'postgres'
+import { z } from 'zod'
+import { Session } from 'inspector'
 
 const app = new Hono()
-const SESSION_SECRET = process.env.SESSION_SECRET
-if (SESSION_SECRET === undefined) {
-  throw new Error('SESSION_SECRET should be defined')
-}
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ??
+  (() => {
+    throw new Error('SESSION_SECRET should be defined')
+  })()
 
 app.use('/css/*', serveStatic({ root: './' }))
 
-const Index: FC<{ questions: Question[] }> = ({ questions }) => (
+const Skeleton: FC<PropsWithChildren<{ head: Child }>> = ({
+  children,
+  head,
+}) => (
   <>
     {html`<!doctype html>`}
     <html>
@@ -29,51 +37,58 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
           integrity="sha384-0gxUXCCR8yv9FM2b+U3FDbsKthCI66oH5IA9fHppQq9DDMHuMauqq1ZHBpJxQ0J0"
           crossorigin="anonymous"
         ></script>
-        <script src="https://unpkg.com/htmx.org@1.9.11/dist/ext/path-params.js" />
         <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
           rel="stylesheet"
         />
         <link href="/css/index.css" rel="stylesheet" />
-        <script type="text/hyperscript">
-          init repeat forever trigger save on {html`<body />`}
-          wait 2s end behavior SortableList(handle) init make a Sortable from
-          me, {'{'}
-          animation: 150, handle: handle
-          {'}'}
-          end
-        </script>
         <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+        {head}
       </head>
-      <body hx-ext="path-params">
-        <ul
-          _="install SortableList(handle: '.handle')"
-          hx-put="/questions"
-          hx-trigger="end"
-          hx-swap="none"
-          hx-include="input[name='question_id']"
-          hx-disinherit="hx-include"
-          id="questions"
-          class="question-list"
-        >
-          {questions.map((q) => (
-            <li>
-              <QuestionEl {...q} />
-            </li>
-          ))}
-        </ul>
-        <button
-          hx-post="/questions"
-          hx-target="#questions"
-          hx-swap="beforeend"
-          class="material-symbols-outlined"
-        >
-          add
-        </button>
-      </body>
+      <body>{children}</body>
     </html>
   </>
+)
+
+const Index: FC<{ questions: Question[] }> = ({ questions }) => (
+  <Skeleton
+    head={
+      <script type="text/hyperscript">
+        init repeat forever trigger save on {html`<body />`}
+        wait 2s end behavior SortableList(handle) init make a Sortable from me,{' '}
+        {'{'}
+        animation: 150, handle: handle
+        {'}'}
+        end
+      </script>
+    }
+  >
+    <ul
+      _="install SortableList(handle: '.handle')"
+      hx-put="/questions"
+      hx-trigger="end"
+      hx-swap="none"
+      hx-include="input[name='question_id']"
+      hx-disinherit="hx-include"
+      id="questions"
+      class="question-list"
+    >
+      {questions.map((q) => (
+        <li>
+          <QuestionEl {...q} />
+        </li>
+      ))}
+    </ul>
+    <button
+      hx-post="/questions"
+      hx-target="#questions"
+      hx-swap="beforeend"
+      class="material-symbols-outlined"
+    >
+      add
+    </button>
+  </Skeleton>
 )
 
 async function fetchQuestions(): Promise<Question[]> {
@@ -107,3 +122,70 @@ app.get('/', async (c) => {
 })
 
 app.route('./questions', questions)
+
+const SignUpForm: FC<{ message?: string }> = ({ message }) => (
+  <Skeleton>
+    <form
+      method="post"
+      action="/signup"
+      hx-post="/signup"
+      hx-swap="none"
+      class="signup-form"
+    >
+      <label for="username">username</label>
+      <input type="text" name="username" id="username" required />
+      <label for="password">password</label>
+      <input type="password" name="password" id="password" required />
+      <div id="messages">{message}</div>
+      <button type="submit">Sign Up</button>
+    </form>
+  </Skeleton>
+)
+
+async function createSession(username: string) {
+  const sessionid = crypto.getRandomValues(new Uint32Array(1))[0]
+  await sql`insert into sessions (id, "user") values (${sessionid}, ${username})`
+  return sessionid
+}
+
+async function authenticate(c: Context, session: number) {
+  await setSignedCookie(c, 'session', String(session), SESSION_SECRET, {
+    httpOnly: true,
+    secure: true,
+  })
+}
+
+app.get('/signup', async (c) => {
+  return c.html(<SignUpForm />)
+})
+app.post('/signup', async (c) => {
+  const body = z.object({ username: z.string(), password: z.string() })
+  const { username, password } = body.parse(await c.req.parseBody())
+  const pass_hashed = await Bun.password.hash(password)
+  try {
+    await sql`insert into users (name, pass) values (${username}, ${pass_hashed})`
+    const session = await createSession(username)
+    await authenticate(c, session)
+  } catch (e) {
+    console.log(e)
+    if (e instanceof pg.PostgresError) {
+      return c.html(
+        <div id="messages" hx-swap-oob="true">
+          <p>User already exists</p>
+        </div>
+      )
+    }
+    return c.html(
+      <div id="messages" hx-swap-oob="true">
+        <p>Unknown error</p>
+      </div>
+    )
+  }
+  if (c.req.header('HX-Request') === 'true') {
+    c.header('HX-Location', '/')
+    return c.body('')
+  }
+  return c.redirect('/')
+})
+
+export default app

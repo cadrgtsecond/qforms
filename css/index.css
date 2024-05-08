@@ -20,6 +20,8 @@
 body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  /* Also make full height */
+  height: 100dvh;
 }
 /* 5. Improve media defaults */
 img,
@@ -113,4 +115,38 @@ input:focus {
 }
 .hidden-button:hover {
   opacity: 100%;
+}
+
+.signup-form {
+  font-size: x-large;
+
+  width: 60rem;
+  border: 1px black groove;
+  padding: var(--size-3);
+
+  margin-block: var(--size-9);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: [labels] auto [inputs] 1fr;
+}
+.signup-form label {
+  text-align: center;
+  padding-block: var(--size-2);
+}
+.signup-form input {
+  border-style: solid solid solid solid;
+  border-width: 1px 1px 1px 1px;
+  border-color: var(--gray-5);
+
+  margin-inline-start: var(--size-3);
+  margin-block: var(--size-2);
+}
+.signup-form #messages {
+  grid-column: 1 / span 2;
+  background-color: var(--red-5);
+  margin-block: var(--size-4);
+  border-radius: var(--radius-3);
+}
+.signup-form #messages * {
+  margin: var(--size-3);
 }
