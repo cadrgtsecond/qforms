@@ -4,11 +4,9 @@ import { setSignedCookie } from 'hono/cookie'
 import { html } from 'hono/html'
 import { Child, FC, PropsWithChildren } from 'hono/jsx'
 import questions, { Question } from './questions'
-import QuestionEl from './Question'
 import sql from './sql'
-import pg from 'postgres'
+import pg, { Fragment } from 'postgres'
 import { z } from 'zod'
-import { Session } from 'inspector'
 
 const app = new Hono()
 const SESSION_SECRET =
@@ -19,9 +17,12 @@ const SESSION_SECRET =
 
 app.use('/css/*', serveStatic({ root: './' }))
 
-const Skeleton: FC<PropsWithChildren<{ head: Child }>> = ({
+const Skeleton = ({
   children,
-  head,
+  extra_head,
+}: {
+  children: Child
+  extra_head: Child
 }) => (
   <>
     {html`<!doctype html>`}
@@ -44,7 +45,7 @@ const Skeleton: FC<PropsWithChildren<{ head: Child }>> = ({
         />
         <link href="/css/index.css" rel="stylesheet" />
         <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
-        {head}
+        {extra_head}
       </head>
       <body>{children}</body>
     </html>
@@ -53,7 +54,7 @@ const Skeleton: FC<PropsWithChildren<{ head: Child }>> = ({
 
 const Index: FC<{ questions: Question[] }> = ({ questions }) => (
   <Skeleton
-    head={
+    extra_head={
       <script type="text/hyperscript">
         init repeat forever trigger save on {html`<body />`}
         wait 2s end behavior SortableList(handle) init make a Sortable from me,{' '}
@@ -64,6 +65,9 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
       </script>
     }
   >
+    <nav class="page-header">
+      <h1>TestContent</h1>
+    </nav>
     <ul
       _="install SortableList(handle: '.handle')"
       hx-put="/questions"
@@ -76,7 +80,7 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
     >
       {questions.map((q) => (
         <li>
-          <QuestionEl {...q} />
+          <Question {...q} />
         </li>
       ))}
     </ul>
@@ -127,7 +131,7 @@ const LoginForm: FC<{ message?: string; targeturl: string }> = ({
   message,
   targeturl,
 }) => (
-  <Skeleton>
+  <Skeleton extra_head={<test>test</test>}>
     <form
       method="post"
       action={targeturl}

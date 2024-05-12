@@ -2,9 +2,10 @@
   "compilerOptions": {
     "strict": true,
     "moduleResolution": "nodenext",
+    "module": "esnext",
     "allowSyntheticDefaultImports": true,
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
-    "target": "es2015"
+    "target": "esnext"
   }
 }
