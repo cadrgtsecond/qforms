@@ -58,16 +58,73 @@ h6 {
 /* 
  * Actual code
  */
+:root {
+  --border-color: var(--gray-5);
+  --bg-1: var(--gray-0);
+  --fg-1: var(--stone-3);
+  --fg-2: var(--stone-6);
+  --text-1: var(--stone-10);
+  --text-1: var(--stone-12);
+}
+
+body {
+  background-color: var(--bg-1);
+  color: var(--text-1);
+}
+
 button {
   border: none;
+  background-color: var(--fg-1);
 }
 
 input {
   border-style: none none solid none;
   border-width: 0 0 0.15rem 0;
+  background-color: var(--bg-1);
 }
 input:focus {
   outline: var(--blue-3) solid 1px;
+}
+
+.page-header {
+  position: sticky;
+  top: 0px;
+
+  border-bottom: var(--border-size-1) solid var(--border-color);
+  box-shadow: var(--shadow-3);
+  z-index: 999;
+  background-color: var(--bg-1);
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-block: var(--size-3);
+  padding-inline: var(--size-2);
+
+  font-size: var(--font-size-5);
+}
+
+.page-header a {
+  background-color: var(--fg-1);
+  color: var(--text-1);
+
+  font-size: var(--size-4);
+  font-weight: var(--font-weight-6);
+  text-decoration: none;
+
+  margin-inline: var(--size-2);
+  padding: var(--size-3);
+  border-radius: var(--radius-3);
+  box-shadow: var(--shadow-4);
+}
+.page-header .signup {
+  background-color: var(--fg-2);
+}
+
+.page-header h1 {
+  font-size: var(--font-size-5);
+  margin-inline-end: auto;
+  color: var(--text-2);
 }
 
 .question-list {
@@ -82,6 +139,7 @@ input:focus {
 
 .question-box {
   border: 1px solid grey;
+  box-shadow: var(--shadow-2);
   margin-block: 1rem;
   min-height: 8rlh;
 }
@@ -136,7 +194,7 @@ input:focus {
 .signup-form input {
   border-style: solid solid solid solid;
   border-width: 1px 1px 1px 1px;
-  border-color: var(--gray-5);
+  border-color: var(--border-color);
 
   margin-inline-start: var(--size-3);
   margin-block: var(--size-2);

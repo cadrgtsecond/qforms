@@ -66,7 +66,9 @@ const Index: FC<{ questions: Question[] }> = ({ questions }) => (
     }
   >
     <nav class="page-header">
-      <h1>TestContent</h1>
+      <h1>QForms</h1>
+      <a href="/login" class="login">Login</a>
+      <a href="/signup" class="signup">Sign Up</a>
     </nav>
     <ul
       _="install SortableList(handle: '.handle')"
@@ -131,7 +133,7 @@ const LoginForm: FC<{ message?: string; targeturl: string }> = ({
   message,
   targeturl,
 }) => (
-  <Skeleton extra_head={<test>test</test>}>
+  <Skeleton>
     <form
       method="post"
       action={targeturl}
